@@ -107,6 +107,7 @@ public class Piece : MonoBehaviour
             }
             else
             {
+                Home.Instance.state = previous;
                 Finish();
             }
         }
@@ -153,6 +154,7 @@ public class Piece : MonoBehaviour
                     if (homeCell.piece) continue;
                     trans.position = homeCell.transform.position;
                     homeCell.piece = this;
+                    break;
                 }
 
                 break;
@@ -163,6 +165,7 @@ public class Piece : MonoBehaviour
                     if (homeCell.piece) continue;
                     trans.position = homeCell.transform.position;
                     homeCell.piece = this;
+                    break;
                 }
                 break;
             case Team.Blue:
@@ -172,6 +175,7 @@ public class Piece : MonoBehaviour
                     if (homeCell.piece) continue;
                     trans.position = homeCell.transform.position;
                     homeCell.piece = this;
+                    break;
                 }
                 break;
             case Team.Green:
@@ -181,6 +185,7 @@ public class Piece : MonoBehaviour
                     if (homeCell.piece) continue;
                     trans.position = homeCell.transform.position;
                     homeCell.piece = this;
+                    break;
                 }
                 break;
         }

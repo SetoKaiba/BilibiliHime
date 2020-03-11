@@ -6534,7 +6534,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 160, y: 0}
+  m_SizeDelta: {x: 300, y: 0}
   m_Pivot: {x: 0, y: 0.5}
 --- !u!114 &1346934240
 MonoBehaviour:
@@ -6556,7 +6556,7 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 15
+    m_FontSize: 20
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 1
@@ -7174,11 +7174,18 @@ MonoBehaviour:
   current: 0
   point: 0
   state: 0
-  countDown: 0
+  countDown: 60
+  currentCountDown: 0
   redPlayer: 
   yellowPlayer: 
   bluePlayer: 
   greenPlayer: 
+  redWin: 0
+  yellowWin: 0
+  blueWin: 0
+  greenWin: 0
+  timeout: 60
+  accTime: 0
 --- !u!1 &1442410747
 GameObject:
   m_ObjectHideFlags: 0
@@ -7657,6 +7664,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c16d5ec9c74978429a2737d6d0c1361, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  roomid: 885302
 --- !u!1 &1681760504
 GameObject:
   m_ObjectHideFlags: 0
@@ -9714,7 +9722,7 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 15
+    m_FontSize: 20
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 1

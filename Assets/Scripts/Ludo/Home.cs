@@ -1,8 +1,8 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using CI.TaskParallel;
+using SpeechLib;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -33,6 +33,7 @@ public class Home : SingletonUtil<Home>
     public State state;
 
     public int countDown;
+    public int currentCountDown;
     public Dictionary<string, int> rollDict = new Dictionary<string, int>();
 
     public string redPlayer;
@@ -40,8 +41,43 @@ public class Home : SingletonUtil<Home>
     public string bluePlayer;
     public string greenPlayer;
 
-    void Start()
+    public bool redWin;
+    public bool yellowWin;
+    public bool blueWin;
+    public bool greenWin;
+
+    public SpVoice spVoice;
+    public float timeout;
+    public float accTime;
+
+    IEnumerator Start()
     {
+        spVoice = new SpVoiceClass();
+        spVoice.Voice = spVoice.GetVoices(string.Empty, string.Empty).Item(0);
+
+        yield return null;
+        Ready();
+    }
+
+    void SpeakPlayerList()
+    {
+        spVoice.Skip("Sentence", int.MaxValue);
+        spVoice.Speak(PlayerList.Instance.text.text);
+    }
+
+    void SpeakInfo()
+    {
+        spVoice.Skip("Sentence", int.MaxValue);
+        spVoice.Speak(Info.Instance.text.text, SpeechVoiceSpeakFlags.SVSFlagsAsync);
+    }
+
+    void Ready()
+    {
+        foreach (var piece in FindObjectsOfType<Piece>())
+        {
+            Destroy(piece.gameObject);
+        }
+
         int i = 1;
         foreach (var homeCell in yellowHomeCells)
         {
@@ -74,22 +110,26 @@ public class Home : SingletonUtil<Home>
             i++;
         }
 
-        Ready();
-    }
-
-    void Ready()
-    {
         state = State.Ready;
         BilibiliLiveNetty.Instance.onDanmakuMessage = (uname, message) =>
         {
-            if (message == "Roll")
+            if (message.ToLower() == "roll")
             {
-                UnityTask.RunOnUIThread(() => { rollDict[uname] = Random.Range(0, 100); });
+                UnityTask.RunOnUIThread(() =>
+                {
+                    if (!rollDict.ContainsKey(uname))
+                    {
+                        rollDict[uname] = Random.Range(0, 100);
+                    }
+                });
             }
         };
-        countDown = 60;
+
+        currentCountDown = countDown;
         rollDict.Clear();
         PlayerList.Instance.text.text = "";
+        Info.Instance.text.text = $"倒计时{currentCountDown}秒，请观众发送弹幕Roll进行Roll点，Roll点最高的4个将进入游戏";
+        SpeakInfo();
         StartCoroutine(ReadyCoroutine());
     }
 
@@ -98,28 +138,37 @@ public class Home : SingletonUtil<Home>
         while (true)
         {
             yield return new WaitForSeconds(1);
-            countDown--;
-            Info.Instance.text.text = $"倒计时{countDown}秒，请观众发送弹幕Roll进行Roll点，Roll点最高的4个将进入游戏";
-            if (countDown == 0)
-            {
-                var players = rollDict.Keys.OrderByDescending(key => rollDict[key]).ToList();
-                if (players.Count >= 4)
-                {
-                    redPlayer = players[0];
-                    yellowPlayer = players[1];
-                    bluePlayer = players[2];
-                    greenPlayer = players[3];
-                    PlayerList.Instance.text.text =
-                        $"红色玩家:　{redPlayer}\n黄色玩家: {yellowPlayer}\n蓝色玩家: {bluePlayer}\n绿色玩家: {greenPlayer}";
-                    StartGame();
-                }
-                else
-                {
-                    Ready();
-                }
+            currentCountDown--;
+            Info.Instance.text.text = $"倒计时{currentCountDown}秒，请观众发送弹幕Roll进行Roll点，Roll点最高的4个将进入游戏";
 
-                break;
+            var str = "";
+            var players = rollDict.Keys.OrderByDescending(key => rollDict[key]).ToList();
+            foreach (var player in players)
+            {
+                str += $"{player}:{rollDict[player]}\n";
             }
+
+            PlayerList.Instance.text.text = str;
+
+            if (currentCountDown != 0) continue;
+            if (players.Count >= 4)
+            {
+                redPlayer = players[0];
+                yellowPlayer = players[1];
+                bluePlayer = players[2];
+                greenPlayer = players[3];
+                PlayerList.Instance.text.text =
+                    $"红色玩家:　{redPlayer}\n黄色玩家: {yellowPlayer}\n蓝色玩家: {bluePlayer}\n绿色玩家: {greenPlayer}";
+                SpeakPlayerList();
+
+                StartGame();
+            }
+            else
+            {
+                Ready();
+            }
+
+            break;
         }
     }
 
@@ -135,20 +184,36 @@ public class Home : SingletonUtil<Home>
                         switch (current)
                         {
                             case Piece.Team.Red:
-                                if (uname == redPlayer && message == "Roll")
+                                if (uname == redPlayer && message.ToLower() == "roll")
+                                {
                                     Roll();
+                                    accTime = 0;
+                                }
+
                                 break;
                             case Piece.Team.Yellow:
-                                if (uname == yellowPlayer && message == "Roll")
+                                if (uname == yellowPlayer && message.ToLower() == "roll")
+                                {
                                     Roll();
+                                    accTime = 0;
+                                }
+
                                 break;
                             case Piece.Team.Blue:
-                                if (uname == bluePlayer && message == "Roll")
+                                if (uname == bluePlayer && message.ToLower() == "roll")
+                                {
                                     Roll();
+                                    accTime = 0;
+                                }
+
                                 break;
                             case Piece.Team.Green:
-                                if (uname == greenPlayer && message == "Roll")
+                                if (uname == greenPlayer && message.ToLower() == "roll")
+                                {
                                     Roll();
+                                    accTime = 0;
+                                }
+
                                 break;
                         }
 
@@ -163,6 +228,7 @@ public class Home : SingletonUtil<Home>
                                     if (flag)
                                     {
                                         Select(index);
+                                        accTime = 0;
                                     }
                                 }
 
@@ -174,6 +240,7 @@ public class Home : SingletonUtil<Home>
                                     if (flag)
                                     {
                                         Select(index);
+                                        accTime = 0;
                                     }
                                 }
 
@@ -185,6 +252,7 @@ public class Home : SingletonUtil<Home>
                                     if (flag)
                                     {
                                         Select(index);
+                                        accTime = 0;
                                     }
                                 }
 
@@ -196,6 +264,7 @@ public class Home : SingletonUtil<Home>
                                     if (flag)
                                     {
                                         Select(index);
+                                        accTime = 0;
                                     }
                                 }
 
@@ -208,7 +277,9 @@ public class Home : SingletonUtil<Home>
         };
         current = Piece.Team.Red;
         state = State.Roll;
+        accTime = 0;
         Info.Instance.text.text = $"请红色玩家{redPlayer}投掷骰子，发送弹幕Roll进行Roll点";
+        SpeakInfo();
     }
 
     void OnGUI()
@@ -224,11 +295,112 @@ public class Home : SingletonUtil<Home>
         }
     }
 
+    void Update()
+    {
+        if (state != State.Ready)
+        {
+            accTime += Time.deltaTime;
+
+            redWin = redHomeCells.All(homeCell => !homeCell.piece);
+
+            redWin = redWin && redControllablePiece.Count == 0;
+
+            yellowWin = yellowHomeCells.All(homeCell => !homeCell.piece);
+
+            yellowWin = yellowWin && yellowControllablePiece.Count == 0;
+
+            blueWin = blueHomeCells.All(homeCell => !homeCell.piece);
+
+            blueWin = blueWin && blueControllablePiece.Count == 0;
+
+            greenWin = greenHomeCells.All(homeCell => !homeCell.piece);
+
+            greenWin = greenWin && greenControllablePiece.Count == 0;
+            string str = null;
+            if (redWin || yellowWin || blueWin || greenWin || accTime > timeout)
+            {
+                state = State.Ready;
+                currentCountDown = countDown;
+                if (redWin)
+                {
+                    str = $"获胜的玩家是{redPlayer}, {currentCountDown}秒后重新开始";
+                }
+
+                if (yellowWin)
+                {
+                    str = $"获胜的玩家是{yellowPlayer}, {currentCountDown}秒后重新开始";
+                }
+
+                if (blueWin)
+                {
+                    str = $"获胜的玩家是{bluePlayer}, {currentCountDown}秒后重新开始";
+                }
+
+                if (greenWin)
+                {
+                    str = $"获胜的玩家是{greenPlayer}，游戏结束, {currentCountDown}秒后重新开始";
+                }
+
+                if (accTime > timeout)
+                {
+                    str = $"玩家{timeout}秒无响应，游戏结束, {currentCountDown}秒后重新开始";
+                }
+
+                Info.Instance.text.text = str;
+                SpeakInfo();
+                StartCoroutine(RestartCoroutine());
+            }
+        }
+    }
+
+    IEnumerator RestartCoroutine(bool win = true)
+    {
+        while (true)
+        {
+            yield return new WaitForSeconds(1);
+            currentCountDown--;
+            string str = null;
+            if (redWin)
+            {
+                str = $"获胜的玩家是{redPlayer}, {currentCountDown}秒后重新开始";
+            }
+
+            if (yellowWin)
+            {
+                str = $"获胜的玩家是{yellowPlayer}, {currentCountDown}秒后重新开始";
+            }
+
+            if (blueWin)
+            {
+                str = $"获胜的玩家是{bluePlayer}, {currentCountDown}秒后重新开始";
+            }
+
+            if (greenWin)
+            {
+                str = $"获胜的玩家是{greenPlayer}, {currentCountDown}秒后重新开始";
+            }
+
+            if (!win)
+            {
+                str = $"玩家{timeout}秒无响应，游戏结束, {currentCountDown}秒后重新开始";
+            }
+
+            Info.Instance.text.text = str;
+
+            if (currentCountDown == 0)
+            {
+                Ready();
+                break;
+            }
+        }
+    }
+
     public void Roll()
     {
         if (state != State.Roll)
             return;
         point = Random.Range(1, 7);
+
         string str = null;
         switch (current)
         {
@@ -243,16 +415,14 @@ public class Home : SingletonUtil<Home>
                 {
                     str = $"Roll点为{point}，请黄色玩家{yellowPlayer}选择飞机或起飞: ";
                     state = State.Select;
-                    if (point == 6)
+                    if (point == 6 && yellowControllablePiece.Count < yellowHomeCells.Count)
                     {
                         str += "0-起飞,";
                     }
-                    else
+
+                    foreach (var piece in yellowControllablePiece)
                     {
-                        foreach (var piece in yellowControllablePiece)
-                        {
-                            str += piece.index + ",";
-                        }
+                        str += piece.index + ",";
                     }
                 }
 
@@ -268,16 +438,14 @@ public class Home : SingletonUtil<Home>
                 {
                     str = $"Roll点为{point}，请蓝色玩家{bluePlayer}选择飞机或起飞: ";
                     state = State.Select;
-                    if (point == 6)
+                    if (point == 6 && blueControllablePiece.Count < blueHomeCells.Count)
                     {
                         str += "0-起飞,";
                     }
-                    else
+
+                    foreach (var piece in blueControllablePiece)
                     {
-                        foreach (var piece in blueControllablePiece)
-                        {
-                            str += piece.index + ",";
-                        }
+                        str += piece.index + ",";
                     }
                 }
 
@@ -293,16 +461,14 @@ public class Home : SingletonUtil<Home>
                 {
                     str = $"Roll点为{point}，请绿色玩家{greenPlayer}选择飞机或起飞: ";
                     state = State.Select;
-                    if (point == 6)
+                    if (point == 6 && greenControllablePiece.Count < greenHomeCells.Count)
                     {
                         str += "0-起飞,";
                     }
-                    else
+
+                    foreach (var piece in greenControllablePiece)
                     {
-                        foreach (var piece in greenControllablePiece)
-                        {
-                            str += piece.index + ",";
-                        }
+                        str += piece.index + ",";
                     }
                 }
 
@@ -318,16 +484,14 @@ public class Home : SingletonUtil<Home>
                 {
                     str = $"Roll点为{point}，请红色玩家{redPlayer}选择飞机或起飞: ";
                     state = State.Select;
-                    if (point == 6)
+                    if (point == 6 && redControllablePiece.Count < redHomeCells.Count)
                     {
                         str += "0-起飞,";
                     }
-                    else
+
+                    foreach (var piece in redControllablePiece)
                     {
-                        foreach (var piece in redControllablePiece)
-                        {
-                            str += piece.index + ",";
-                        }
+                        str += piece.index + ",";
                     }
                 }
 
@@ -335,16 +499,19 @@ public class Home : SingletonUtil<Home>
         }
 
         Info.Instance.text.text = str;
+        SpeakInfo();
     }
 
     public void Select(int index)
     {
         if (state != State.Select)
             return;
+
+        string str = null;
         switch (current)
         {
             case Piece.Team.Yellow:
-                if (index == 0 && point == 6)
+                if (index == 0 && point == 6 && yellowControllablePiece.Count < yellowHomeCells.Count)
                 {
                     foreach (var homeCell in yellowHomeCells)
                     {
@@ -359,7 +526,7 @@ public class Home : SingletonUtil<Home>
                         }
                     }
 
-                    Info.Instance.text.text = $"请黄色玩家{yellowPlayer}继续投掷骰子";
+                    str = $"请黄色玩家{yellowPlayer}继续投掷骰子，发送弹幕Roll进行Roll点";
                     state = State.Roll;
                 }
                 else
@@ -371,11 +538,11 @@ public class Home : SingletonUtil<Home>
                             if (point != 6)
                             {
                                 current = Piece.Team.Blue;
-                                Info.Instance.text.text = $"请蓝色玩家{bluePlayer}投掷骰子";
+                                str = $"请蓝色玩家{bluePlayer}投掷骰子，发送弹幕Roll进行Roll点";
                             }
                             else
                             {
-                                Info.Instance.text.text = $"请黄色玩家{yellowPlayer}继续投掷骰子";
+                                str = $"请黄色玩家{yellowPlayer}继续投掷骰子，发送弹幕Roll进行Roll点";
                             }
 
                             state = State.Roll;
@@ -388,7 +555,7 @@ public class Home : SingletonUtil<Home>
 
                 break;
             case Piece.Team.Blue:
-                if (index == 0 && point == 6)
+                if (index == 0 && point == 6 && blueControllablePiece.Count < blueHomeCells.Count)
                 {
                     foreach (var homeCell in blueHomeCells)
                     {
@@ -403,7 +570,7 @@ public class Home : SingletonUtil<Home>
                         }
                     }
 
-                    Info.Instance.text.text = $"请蓝色玩家{bluePlayer}继续投掷骰子";
+                    str = $"请蓝色玩家{bluePlayer}继续投掷骰子，发送弹幕Roll进行Roll点";
                     state = State.Roll;
                 }
                 else
@@ -415,11 +582,11 @@ public class Home : SingletonUtil<Home>
                             if (point != 6)
                             {
                                 current = Piece.Team.Green;
-                                Info.Instance.text.text = $"请绿色玩家{greenPlayer}投掷骰子";
+                                str = $"请绿色玩家{greenPlayer}投掷骰子，发送弹幕Roll进行Roll点";
                             }
                             else
                             {
-                                Info.Instance.text.text = $"请蓝色玩家{bluePlayer}继续投掷骰子";
+                                str = $"请蓝色玩家{bluePlayer}继续投掷骰子，发送弹幕Roll进行Roll点";
                             }
 
                             state = State.Roll;
@@ -432,7 +599,7 @@ public class Home : SingletonUtil<Home>
 
                 break;
             case Piece.Team.Green:
-                if (index == 0 && point == 6)
+                if (index == 0 && point == 6 && greenControllablePiece.Count < greenHomeCells.Count)
                 {
                     foreach (var homeCell in greenHomeCells)
                     {
@@ -447,7 +614,7 @@ public class Home : SingletonUtil<Home>
                         }
                     }
 
-                    Info.Instance.text.text = $"请绿色玩家{greenPlayer}继续投掷骰子";
+                    str = $"请绿色玩家{greenPlayer}继续投掷骰子，发送弹幕Roll进行Roll点";
                     state = State.Roll;
                 }
                 else
@@ -459,11 +626,11 @@ public class Home : SingletonUtil<Home>
                             if (point != 6)
                             {
                                 current = Piece.Team.Red;
-                                Info.Instance.text.text = $"请红色玩家{redPlayer}投掷骰子";
+                                str = $"请红色玩家{redPlayer}投掷骰子，发送弹幕Roll进行Roll点";
                             }
                             else
                             {
-                                Info.Instance.text.text = $"请绿色玩家{greenPlayer}继续投掷骰子";
+                                str = $"请绿色玩家{greenPlayer}继续投掷骰子，发送弹幕Roll进行Roll点";
                             }
 
                             state = State.Roll;
@@ -476,7 +643,7 @@ public class Home : SingletonUtil<Home>
 
                 break;
             case Piece.Team.Red:
-                if (index == 0 && point == 6)
+                if (index == 0 && point == 6 && redControllablePiece.Count < redHomeCells.Count)
                 {
                     foreach (var homeCell in redHomeCells)
                     {
@@ -491,7 +658,7 @@ public class Home : SingletonUtil<Home>
                         }
                     }
 
-                    Info.Instance.text.text = $"请红色玩家{redPlayer}继续投掷骰子";
+                    str = $"请红色玩家{redPlayer}继续投掷骰子，发送弹幕Roll进行Roll点";
                     state = State.Roll;
                 }
                 else
@@ -503,11 +670,11 @@ public class Home : SingletonUtil<Home>
                             if (point != 6)
                             {
                                 current = Piece.Team.Yellow;
-                                Info.Instance.text.text = $"请黄色玩家{yellowPlayer}投掷骰子";
+                                str = $"请黄色玩家{yellowPlayer}投掷骰子，发送弹幕Roll进行Roll点";
                             }
                             else
                             {
-                                Info.Instance.text.text = $"请红色玩家{redPlayer}继续投掷骰子";
+                                str = $"请红色玩家{redPlayer}继续投掷骰子，发送弹幕Roll进行Roll点";
                             }
 
                             state = State.Roll;
@@ -520,6 +687,9 @@ public class Home : SingletonUtil<Home>
 
                 break;
         }
+
+        Info.Instance.text.text = str;
+        SpeakInfo();
     }
 }
 

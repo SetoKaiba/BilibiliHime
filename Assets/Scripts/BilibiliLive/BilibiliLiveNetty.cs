@@ -13,9 +13,11 @@ using UnityEngine.Events;
 public class BilibiliLiveNetty : SingletonUtil<BilibiliLiveNetty>
 {
     public Action<string, string> onDanmakuMessage;
-    
+    public Action<string, string, int, string> onSendGift;
+    public int roomid;
+
     // Start is called before the first frame update
-    void Start()
+    void OnEnable()
     {
         UnityTask.InitialiseDispatcher();
         Connect();
@@ -31,7 +33,7 @@ public class BilibiliLiveNetty : SingletonUtil<BilibiliLiveNetty>
         var handler = new BilibiliLiveHandler(
             WebSocketClientHandshakerFactory.NewHandshaker(
                 new Uri("ws://broadcastlv.chat.bilibili.com:2244/sub"), WebSocketVersion.V13, null, true,
-                new DefaultHttpHeaders()), 885302, this);
+                new DefaultHttpHeaders()), this);
 
         var bootstrap = new Bootstrap()
             .Group(workerGroup)

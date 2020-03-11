@@ -17,14 +17,12 @@ public class BilibiliLiveHandler : SimpleChannelInboundHandler<object>
     readonly WebSocketClientHandshaker handshaker;
     readonly TaskCompletionSource completionSource;
 
-    readonly int roomid;
     readonly BilibiliLiveNetty bilibiliLiveNetty;
 
-    public BilibiliLiveHandler(WebSocketClientHandshaker handshaker, int roomid, BilibiliLiveNetty bilibiliLiveNetty)
+    public BilibiliLiveHandler(WebSocketClientHandshaker handshaker, BilibiliLiveNetty bilibiliLiveNetty)
     {
         this.handshaker = handshaker;
         completionSource = new TaskCompletionSource();
-        this.roomid = roomid;
         this.bilibiliLiveNetty = bilibiliLiveNetty;
     }
 
@@ -47,7 +45,7 @@ public class BilibiliLiveHandler : SimpleChannelInboundHandler<object>
             {
                 handshaker.FinishHandshake(ch, (IFullHttpResponse) msg);
                 completionSource.TryComplete();
-                var enterRoom = new JObject(new JProperty("roomid", roomid));
+                var enterRoom = new JObject(new JProperty("roomid", bilibiliLiveNetty.roomid));
                 var str = enterRoom.ToString();
                 var enterRoomByteBuffer = Encode(7, str);
                 ctx.WriteAndFlushAsync(new BinaryWebSocketFrame(enterRoomByteBuffer));
@@ -161,6 +159,7 @@ public class BilibiliLiveHandler : SimpleChannelInboundHandler<object>
                         var num = (int) msg["data"]["num"];
                         var giftName = (string) msg["data"]["giftName"];
                         Debug.Log($"{uname} {action} {num} 个 {giftName}");
+                        HandleSendGift(uname, action, num, giftName);
                         break;
                     case "WELCOME_GUARD":
 
@@ -173,7 +172,12 @@ public class BilibiliLiveHandler : SimpleChannelInboundHandler<object>
 
     private void HandleDanmakuMessage(string uname, string message)
     {
-        bilibiliLiveNetty.onDanmakuMessage(uname, message);
+        bilibiliLiveNetty.onDanmakuMessage?.Invoke(uname, message);
+    }
+
+    private void HandleSendGift(string uname, string action, int num, string giftName)
+    {
+        bilibiliLiveNetty.onSendGift?.Invoke(uname, action, num, giftName);
     }
 
     public override void ExceptionCaught(IChannelHandlerContext ctx, Exception exception)
